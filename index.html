@@ -561,7 +561,7 @@ async function renderAdminLiens(){
   body.innerHTML = `
     <div class="card">
       <div class="card-title">Liens personnels par élève</div>
-      <div class="card-hint">Générez le lien de présence de chaque élève, à envoyer une fois par WhatsApp ou e-mail. L'élève l'ouvre en classe pour accéder directement à son espace.</div>
+      <div class="card-hint">Générez le lien de présence de chaque élève, puis envoyez-le en un clic par WhatsApp, e-mail ou SMS — le message est déjà prêt avec le lien dedans. L'élève l'ouvre en classe pour accéder directement à son espace.</div>
       <div class="field"><label>Classe</label>
         <select id="ad-classe" onchange="adminLoadLiens()"><option value="">Choisir une classe...</option>
           ${classes.map(c=>`<option value="${esc(c.id)}">${esc(c.name)}</option>`).join('')}
@@ -591,15 +591,21 @@ window.adminLoadLiens = async function(){
     return `<div class="el-row" style="flex-wrap:wrap" data-eid="${esc(String(e.id))}" data-nom="${esc(full)}" data-token="${esc(token||'')}">
       <span class="el-name">${esc(full)}</span>
       <span>
-        ${token ? `<button class="link-btn js-partager">📤 Partager le lien</button>` : ''}
+        ${token ? `<button class="link-btn js-partager-wa" title="Envoyer par WhatsApp">📱 WhatsApp</button>
+        <button class="link-btn js-partager-email" title="Envoyer par e-mail">✉️ Email</button>
+        <button class="link-btn js-partager-sms" title="Envoyer par SMS">💬 SMS</button>` : ''}
         <button class="link-btn js-regenerer" ${token?'style="color:var(--ink-soft)"':''}>${token ? '↻' : '✨ Générer le lien'}</button>
       </span>
     </div>`;
   }).join('') || '<div class="empty-note">Aucun élève dans cette classe.</div>';
   listEl.querySelectorAll('.el-row').forEach(row=>{
     const eid = row.dataset.eid, nom = row.dataset.nom, token = row.dataset.token;
-    const pBtn = row.querySelector('.js-partager');
-    if(pBtn) pBtn.addEventListener('click', ()=> adminPartagerLien(token, nom));
+    const waBtn = row.querySelector('.js-partager-wa');
+    const emailBtn = row.querySelector('.js-partager-email');
+    const smsBtn = row.querySelector('.js-partager-sms');
+    if(waBtn) waBtn.addEventListener('click', ()=> adminPartagerLien(token, nom, 'wa'));
+    if(emailBtn) emailBtn.addEventListener('click', ()=> adminPartagerLien(token, nom, 'email'));
+    if(smsBtn) smsBtn.addEventListener('click', ()=> adminPartagerLien(token, nom, 'sms'));
     row.querySelector('.js-regenerer').addEventListener('click', ()=> adminRegenererLien(classeId, eid, classe.name, nom));
   });
 };
@@ -611,11 +617,21 @@ window.adminRegenererLien = async function(classeId, eleveId, classeName, eleveN
     adminLoadLiens();
   }catch(e){ toast('Erreur.'); }
 };
-window.adminPartagerLien = function(token, eleveNom){
+window.adminPartagerLien = function(token, eleveNom, canal){
   const url = `${location.origin}${location.pathname}?eleve=${encodeURIComponent(token)}`;
   const msg = `Bonjour, voici ton lien personnel pour le registre de présence (${eleveNom}) : ${url}`;
-  const wa = `https://wa.me/?text=${encodeURIComponent(msg)}`;
-  window.open(wa,'_blank');
+  if(canal === 'email'){
+    const subject = `Ton lien personnel - Registre de présence`;
+    window.location.href = `mailto:?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(msg)}`;
+  } else if(canal === 'sms'){
+    const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent);
+    window.location.href = isIOS
+      ? `sms:&body=${encodeURIComponent(msg)}`
+      : `sms:?body=${encodeURIComponent(msg)}`;
+  } else {
+    const wa = `https://wa.me/?text=${encodeURIComponent(msg)}`;
+    window.open(wa,'_blank');
+  }
 };
 
 async function renderAdminHistorique(){
