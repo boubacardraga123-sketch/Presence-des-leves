@@ -665,7 +665,13 @@ function formatTelGN(tel){
 
 async function renderAdminHistorique(){
   const body = document.getElementById('ad-body');
-  body.innerHTML = `<div class="card"><div class="card-title">Derniers appels</div><div id="ad-histo" class="empty-note">Chargement…</div></div>`;
+  body.innerHTML = `<div class="card">
+    <div class="card-title" style="display:flex;align-items:center;justify-content:space-between">
+      <span>Derniers appels</span>
+      <button class="link-btn" style="color:#c0392b" onclick="adminSupprimerToutHistorique()">🗑 Tout supprimer</button>
+    </div>
+    <div id="ad-histo" class="empty-note">Chargement…</div>
+  </div>`;
   try{
     const qy = query(collection(db,'edtxPresenceSessions'), orderBy('createdAt','desc'), limit(25));
     const snap = await getDocs(qy);
@@ -673,13 +679,39 @@ async function renderAdminHistorique(){
     if(snap.empty){ el.innerHTML = '<div class="empty-note">Aucun appel enregistré.</div>'; return; }
     el.innerHTML = snap.docs.map(d=>{
       const x = d.data();
-      return `<div class="session-row" onclick="adminVoirSession('${d.id}')">
-        <div class="top"><span>${esc(x.classeName)} · ${esc(x.matiere)}</span><span class="status-pill ${x.active?'open':'closed'}">${x.active?'En cours':'Clôturé'}</span></div>
-        <div class="meta">${esc(x.date||'')} — ${esc(x.profNom||'')}</div>
+      return `<div class="session-row" style="display:flex;align-items:center;justify-content:space-between;gap:8px">
+        <div style="flex:1;cursor:pointer" onclick="adminVoirSession('${d.id}')">
+          <div class="top"><span>${esc(x.classeName)} · ${esc(x.matiere)}</span><span class="status-pill ${x.active?'open':'closed'}">${x.active?'En cours':'Clôturé'}</span></div>
+          <div class="meta">${esc(x.date||'')} — ${esc(x.profNom||'')}</div>
+        </div>
+        <button class="link-btn" style="color:#c0392b" title="Supprimer cet appel" onclick="event.stopPropagation();adminSupprimerSession('${d.id}')">🗑</button>
       </div>`;
     }).join('');
   }catch(e){ document.getElementById('ad-histo').innerHTML = '<div class="empty-note">Erreur de chargement.</div>'; }
 }
+window.adminSupprimerSession = async function(sessionId){
+  if(!confirm('Supprimer définitivement cet appel et la liste des présences associée ?')) return;
+  try{
+    const vsnap = await getDocs(collection(db,'edtxPresenceSessions',sessionId,'eleves'));
+    await Promise.all(vsnap.docs.map(d=>deleteDoc(d.ref)));
+    await deleteDoc(doc(db,'edtxPresenceSessions',sessionId));
+    toast('Appel supprimé.');
+    renderAdminHistorique();
+  }catch(e){ toast('Erreur lors de la suppression.'); }
+};
+window.adminSupprimerToutHistorique = async function(){
+  if(!confirm('Supprimer TOUT l\'historique des appels ? Cette action est irréversible.')) return;
+  try{
+    const snap = await getDocs(collection(db,'edtxPresenceSessions'));
+    for(const d of snap.docs){
+      const vsnap = await getDocs(collection(db,'edtxPresenceSessions',d.id,'eleves'));
+      await Promise.all(vsnap.docs.map(v=>deleteDoc(v.ref)));
+      await deleteDoc(d.ref);
+    }
+    toast('Historique entièrement supprimé.');
+    renderAdminHistorique();
+  }catch(e){ toast('Erreur lors de la suppression.'); }
+};
 window.adminVoirSession = async function(sessionId){
   const snap = await getDoc(doc(db,'edtxPresenceSessions',sessionId));
   if(!snap.exists()) return;
@@ -697,7 +729,10 @@ window.adminVoirSession = async function(sessionId){
   body.innerHTML = `
     <button class="link-btn" onclick="adminSwitchTab('historique')">← Retour à l'historique</button>
     <div class="card">
-      <div class="card-title">${esc(data.classeName)} · ${esc(data.matiere)}</div>
+      <div class="card-title" style="display:flex;align-items:center;justify-content:space-between">
+        <span>${esc(data.classeName)} · ${esc(data.matiere)}</span>
+        <button class="link-btn" style="color:#c0392b" onclick="adminSupprimerSession('${sessionId}')">🗑 Supprimer</button>
+      </div>
       <div class="card-hint">${esc(data.date||'')} — ${esc(data.profNom||'')} · <span class="status-pill ${data.active?'open':'closed'}">${data.active?'En cours':'Clôturé'}</span></div>
       <div class="count-row">
         <div class="count-box present"><div class="n">${presentRows.length}</div><div class="l">Présents</div></div>
