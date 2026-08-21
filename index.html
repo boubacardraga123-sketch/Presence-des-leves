@@ -583,13 +583,16 @@ window.adminLoadLiens = async function(){
   try{
     const qy = query(collection(db,'edtxPresenceEleves'), where('classeId','==',classeId));
     const snap = await getDocs(qy);
-    snap.forEach(d=>{ existing[d.data().eleveId] = d.id; });
+    snap.forEach(d=>{ existing[d.data().eleveId] = { token: d.id, tel: d.data().tel || '' }; });
   }catch(e){}
   listEl.innerHTML = eleves.map(e=>{
     const full = `${e.prenom?e.prenom+' ':''}${e.name||''}`.trim();
-    const token = existing[String(e.id)];
-    return `<div class="el-row" style="flex-wrap:wrap" data-eid="${esc(String(e.id))}" data-nom="${esc(full)}" data-token="${esc(token||'')}">
+    const info = existing[String(e.id)] || {};
+    const token = info.token;
+    const tel = info.tel || '';
+    return `<div class="el-row" style="flex-wrap:wrap;gap:6px" data-eid="${esc(String(e.id))}" data-nom="${esc(full)}" data-token="${esc(token||'')}">
       <span class="el-name">${esc(full)}</span>
+      ${token ? `<input type="tel" class="js-tel" placeholder="N° WhatsApp (ex: 622112233)" value="${esc(tel)}" style="flex:1;min-width:150px;padding:6px 8px;border:1px solid var(--line,#ccc);border-radius:6px">` : ''}
       <span>
         ${token ? `<button class="link-btn js-partager-wa" title="Envoyer par WhatsApp">📱 WhatsApp</button>
         <button class="link-btn js-partager-email" title="Envoyer par e-mail">✉️ Email</button>
@@ -600,14 +603,25 @@ window.adminLoadLiens = async function(){
   }).join('') || '<div class="empty-note">Aucun élève dans cette classe.</div>';
   listEl.querySelectorAll('.el-row').forEach(row=>{
     const eid = row.dataset.eid, nom = row.dataset.nom, token = row.dataset.token;
+    const telInput = row.querySelector('.js-tel');
     const waBtn = row.querySelector('.js-partager-wa');
     const emailBtn = row.querySelector('.js-partager-email');
     const smsBtn = row.querySelector('.js-partager-sms');
-    if(waBtn) waBtn.addEventListener('click', ()=> adminPartagerLien(token, nom, 'wa'));
+    if(telInput){
+      telInput.addEventListener('change', ()=> adminEnregistrerTel(token, telInput.value.trim()));
+    }
+    if(waBtn) waBtn.addEventListener('click', ()=> adminPartagerLien(token, nom, 'wa', telInput?telInput.value.trim():''));
     if(emailBtn) emailBtn.addEventListener('click', ()=> adminPartagerLien(token, nom, 'email'));
-    if(smsBtn) smsBtn.addEventListener('click', ()=> adminPartagerLien(token, nom, 'sms'));
+    if(smsBtn) smsBtn.addEventListener('click', ()=> adminPartagerLien(token, nom, 'sms', telInput?telInput.value.trim():''));
     row.querySelector('.js-regenerer').addEventListener('click', ()=> adminRegenererLien(classeId, eid, classe.name, nom));
   });
+};
+window.adminEnregistrerTel = async function(token, tel){
+  if(!token) return;
+  try{
+    await setDoc(doc(db,'edtxPresenceEleves',token), { tel }, { merge: true });
+    toast('Numéro enregistré.');
+  }catch(e){ toast('Erreur d\'enregistrement du numéro.'); }
 };
 window.adminRegenererLien = async function(classeId, eleveId, classeName, eleveNom){
   try{
@@ -617,22 +631,37 @@ window.adminRegenererLien = async function(classeId, eleveId, classeName, eleveN
     adminLoadLiens();
   }catch(e){ toast('Erreur.'); }
 };
-window.adminPartagerLien = function(token, eleveNom, canal){
+window.adminPartagerLien = function(token, eleveNom, canal, tel){
   const url = `${location.origin}${location.pathname}?eleve=${encodeURIComponent(token)}`;
   const msg = `Bonjour, voici ton lien personnel pour le registre de présence (${eleveNom}) : ${url}`;
+  const telFormate = formatTelGN(tel);
   if(canal === 'email'){
     const subject = `Ton lien personnel - Registre de présence`;
     window.location.href = `mailto:?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(msg)}`;
   } else if(canal === 'sms'){
     const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent);
+    const numero = telFormate || '';
     window.location.href = isIOS
-      ? `sms:&body=${encodeURIComponent(msg)}`
-      : `sms:?body=${encodeURIComponent(msg)}`;
+      ? `sms:${numero}&body=${encodeURIComponent(msg)}`
+      : `sms:${numero}?body=${encodeURIComponent(msg)}`;
   } else {
-    const wa = `https://wa.me/?text=${encodeURIComponent(msg)}`;
+    if(!telFormate){ toast('Ajoutez le numéro WhatsApp de l\'élève ci-dessus pour ouvrir directement sa conversation.'); }
+    const wa = telFormate
+      ? `https://wa.me/${telFormate}?text=${encodeURIComponent(msg)}`
+      : `https://wa.me/?text=${encodeURIComponent(msg)}`;
     window.open(wa,'_blank');
   }
 };
+// Formate un numéro guinéen au format international requis par WhatsApp (sans +, sans espaces)
+function formatTelGN(tel){
+  if(!tel) return '';
+  let n = String(tel).replace(/[^0-9]/g,'');
+  if(!n) return '';
+  if(n.startsWith('00224')) n = n.slice(2);
+  if(n.startsWith('224')) return n;
+  if(n.startsWith('0')) n = n.slice(1);
+  return '224' + n;
+}
 
 async function renderAdminHistorique(){
   const body = document.getElementById('ad-body');
