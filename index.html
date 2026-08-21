@@ -1,0 +1,699 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<meta name="theme-color" content="#16281e">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="Présence">
+<meta name="description" content="Registre de présence en temps réel — Club Réussir Ensemble">
+<title>Registre de présence — Club Réussir Ensemble</title>
+<link rel="manifest" href="./manifest.json">
+<link rel="icon" href="./icon-192.png" type="image/png">
+<link rel="apple-touch-icon" href="./icon-192.png">
+<link href="https://fonts.googleapis.com/css2?family=Caveat:wght@600;700&family=Fraunces:opsz,wght@9..144,500;9..144,600;9..144,700&family=DM+Sans:wght@400;500;600&family=DM+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+/* ══════════════════════════════════════════════════════════════
+   SYSTÈME DE DESIGN — « Registre & Tampon »
+   Un registre d'appel (couverture toile bleu nuit, tranche rouge)
+   qui s'ouvre sur une page de cahier crème. Le professeur affiche
+   un code sur une ardoise ; l'élève appose un tampon d'encre verte
+   pour confirmer sa présence — un geste physique, pas juste un clic.
+   Hérite du bleu stylo et de l'univers Club Réussir Ensemble.
+   ══════════════════════════════════════════════════════════════ */
+:root{
+  --cover:#1c2b45; --cover-edge:#101a2c; --tranche:#8c2f2a;
+  --paper:#faf6ea; --paper-card:#fffdf6; --rule:#e6dcc0;
+  --marge:#b5433f; --marge-soft:#e7c9c3;
+  --ink:#26313c; --ink-soft:#67737e;
+  --stylo:#3457d5; --stylo-dark:#2743ac; --stylo-tint:#eaefff;
+  --tampon:#1f8a4c; --tampon-dark:#166238; --tampon-tint:#e8f7ee;
+  --absent:#b5433f; --absent-tint:#fbe9e8;
+  --board:#16281e; --board-edge:#0c1a12; --chalk:#f4efe0;
+  --radius:13px;
+}
+*{box-sizing:border-box;margin:0;padding:0}
+body{background:var(--paper);font-family:'DM Sans',sans-serif;min-height:100vh;color:var(--ink);-webkit-font-smoothing:antialiased}
+.wrap{max-width:680px;margin:0 auto;padding-bottom:32px;min-height:100vh}
+button{font-family:inherit;cursor:pointer;border:none}
+input,select{font-family:inherit}
+
+/* ── En-tête « registre » ── */
+.cover-head{background:linear-gradient(180deg,var(--cover),var(--cover-edge));position:relative;padding:22px 20px 26px;color:var(--chalk);border-bottom:5px solid var(--tranche)}
+.cover-head::after{content:'';position:absolute;left:0;right:0;bottom:-5px;height:5px;background:repeating-linear-gradient(90deg,var(--tranche) 0 14px,#7a2823 14px 16px)}
+.cover-eyebrow{font-family:'DM Mono',monospace;font-size:11px;letter-spacing:.14em;text-transform:uppercase;opacity:.72;margin-bottom:6px}
+.cover-title{font-family:'Fraunces',serif;font-weight:600;font-size:26px;line-height:1.15}
+.cover-sub{font-family:'Caveat',cursive;font-size:19px;color:#c9d3e6;margin-top:3px}
+.who-badge{display:inline-flex;align-items:center;gap:6px;background:rgba(255,255,255,.1);border:1px solid rgba(255,255,255,.18);border-radius:20px;padding:5px 12px;font-size:12.5px;font-weight:600;margin-top:12px}
+.head-actions{position:absolute;top:20px;right:16px;display:flex;gap:8px}
+.icon-btn{background:rgba(255,255,255,.1);border:1px solid rgba(255,255,255,.18);color:var(--chalk);border-radius:9px;padding:7px 10px;font-size:13px;font-weight:600}
+
+/* ── Cartes / page cahier ── */
+.page{padding:20px 18px 8px}
+.card{background:var(--paper-card);border:1px solid var(--rule);border-radius:var(--radius);padding:18px 16px;margin-bottom:14px;box-shadow:0 1px 0 var(--rule)}
+.card-title{font-family:'Fraunces',serif;font-weight:600;font-size:17px;margin-bottom:4px}
+.card-hint{font-size:13px;color:var(--ink-soft);margin-bottom:14px;line-height:1.45}
+
+/* ── Sélecteur de rôle ── */
+.role-grid{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-top:4px}
+.role-card{background:var(--paper-card);border:1.5px solid var(--rule);border-radius:var(--radius);padding:22px 14px;text-align:center;transition:transform .15s,border-color .15s}
+.role-card:active{transform:scale(.97)}
+.role-card .emoji{font-size:32px;display:block;margin-bottom:8px}
+.role-card .lbl{font-weight:700;font-size:14.5px}
+.role-card.cover-eleve{border-color:var(--stylo)}
+.role-card.cover-admin{border-color:var(--cover);font-size:13.5px}
+
+/* ── Champs / boutons ── */
+.field{margin-bottom:13px}
+.field label{display:block;font-size:12.5px;font-weight:600;color:var(--ink-soft);margin-bottom:5px;text-transform:uppercase;letter-spacing:.03em}
+.field input, .field select{width:100%;padding:11px 12px;border:1.5px solid var(--rule);border-radius:9px;font-size:15px;background:#fff;color:var(--ink)}
+.field input:focus, .field select:focus{outline:none;border-color:var(--stylo)}
+.btn{display:inline-flex;align-items:center;justify-content:center;gap:7px;padding:12px 18px;border-radius:10px;font-weight:700;font-size:14.5px;width:100%}
+.btn-primary{background:var(--stylo);color:#fff}
+.btn-primary:active{background:var(--stylo-dark)}
+.btn-tampon{background:var(--tampon);color:#fff}
+.btn-tampon:active{background:var(--tampon-dark)}
+.btn-danger{background:var(--absent);color:#fff}
+.btn-ghost{background:var(--stylo-tint);color:var(--stylo-dark)}
+.btn-outline{background:#fff;border:1.5px solid var(--rule);color:var(--ink)}
+.btn-sm{padding:8px 12px;font-size:13px;width:auto}
+.btn-row{display:flex;gap:8px}
+.btn-row .btn{flex:1}
+.link-btn{background:none;border:none;color:var(--stylo);font-weight:600;font-size:13.5px;text-decoration:underline;padding:6px 0}
+
+/* ── Ardoise du code de session ── */
+.board{background:radial-gradient(ellipse at 50% 0%,#1e3527,var(--board) 70%);border:6px solid var(--board-edge);border-radius:16px;padding:22px 16px;text-align:center;color:var(--chalk);margin-bottom:14px;position:relative;box-shadow:inset 0 0 40px rgba(0,0,0,.35)}
+.board-label{font-family:'DM Mono',monospace;font-size:11px;letter-spacing:.16em;text-transform:uppercase;opacity:.65;margin-bottom:8px}
+.board-code{font-family:'DM Mono',monospace;font-weight:500;font-size:52px;letter-spacing:.22em;line-height:1;text-shadow:0 0 14px rgba(244,239,224,.35)}
+.board-meta{margin-top:12px;font-size:13px;opacity:.8;font-family:'DM Sans',sans-serif}
+.board-timer{font-family:'DM Mono',monospace;font-size:12px;opacity:.6;margin-top:4px}
+
+/* ── Compteur présence ── */
+.count-row{display:flex;gap:10px;margin-bottom:14px}
+.count-box{flex:1;background:var(--paper-card);border:1px solid var(--rule);border-radius:10px;padding:12px;text-align:center}
+.count-box .n{font-family:'Fraunces',serif;font-weight:600;font-size:24px}
+.count-box.present .n{color:var(--tampon)}
+.count-box.absent .n{color:var(--absent)}
+.count-box .l{font-size:11px;color:var(--ink-soft);text-transform:uppercase;letter-spacing:.04em;margin-top:2px}
+
+/* ── Liste élèves ── */
+.el-row{display:flex;align-items:center;justify-content:space-between;padding:10px 4px;border-bottom:1px solid var(--rule);font-size:14px}
+.el-row:last-child{border-bottom:none}
+.el-name{font-weight:500}
+.el-time{font-family:'DM Mono',monospace;font-size:11.5px;color:var(--tampon-dark);background:var(--tampon-tint);padding:2px 8px;border-radius:20px}
+.el-missing{color:var(--absent);font-size:11.5px;font-weight:600}
+
+/* ── Tampon (bouton de validation élève) ── */
+.stamp-zone{display:flex;flex-direction:column;align-items:center;padding:18px 10px 6px}
+.stamp-btn{width:150px;height:150px;border-radius:50%;background:radial-gradient(circle at 35% 30%,#2aa25e,var(--tampon) 60%,var(--tampon-dark) 100%);color:#fff;font-family:'Fraunces',serif;font-weight:600;font-size:16px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:4px;box-shadow:0 8px 0 var(--tampon-dark),0 10px 18px rgba(0,0,0,.18);transition:transform .08s,box-shadow .08s}
+.stamp-btn:active{transform:translateY(6px);box-shadow:0 2px 0 var(--tampon-dark),0 4px 10px rgba(0,0,0,.15)}
+.stamp-btn .big{font-size:34px}
+.stamp-btn.validated{background:radial-gradient(circle at 35% 30%,#8fb99f,#5c8a6e 60%,#3e6b4f 100%);box-shadow:0 4px 0 #2c5039}
+@keyframes stampSlam{0%{transform:scale(1.5) rotate(-14deg);opacity:0}55%{transform:scale(.94) rotate(3deg);opacity:1}100%{transform:scale(1) rotate(-4deg);opacity:1}}
+.stamp-mark{margin-top:16px;border:3px solid var(--tampon);color:var(--tampon);border-radius:10px;padding:10px 18px;font-family:'Caveat',cursive;font-weight:700;font-size:26px;transform:rotate(-4deg);animation:stampSlam .4s ease-out}
+.code-shake{animation:shake .35s}
+@keyframes shake{0%,100%{transform:translateX(0)}20%{transform:translateX(-8px)}40%{transform:translateX(8px)}60%{transform:translateX(-6px)}80%{transform:translateX(6px)}}
+
+/* ── Recherche nom élève ── */
+.name-search-results{max-height:220px;overflow-y:auto;border:1px solid var(--rule);border-radius:9px;margin-top:6px}
+.name-opt{padding:10px 12px;border-bottom:1px solid var(--rule);font-size:14px;cursor:pointer}
+.name-opt:last-child{border-bottom:none}
+.name-opt:active{background:var(--stylo-tint)}
+
+/* ── Tabs admin ── */
+.tabs{display:flex;gap:6px;margin-bottom:14px;overflow-x:auto}
+.tab{padding:9px 14px;border-radius:9px;background:var(--paper-card);border:1px solid var(--rule);font-size:13px;font-weight:600;white-space:nowrap;color:var(--ink-soft)}
+.tab.active{background:var(--stylo);color:#fff;border-color:var(--stylo)}
+
+.session-row{padding:12px 4px;border-bottom:1px solid var(--rule);cursor:pointer}
+.session-row:last-child{border-bottom:none}
+.session-row .top{display:flex;justify-content:space-between;font-weight:600;font-size:14px}
+.session-row .meta{font-size:12px;color:var(--ink-soft);margin-top:2px}
+.status-pill{font-size:10.5px;font-weight:700;padding:2px 8px;border-radius:20px;text-transform:uppercase;letter-spacing:.03em}
+.status-pill.open{background:var(--tampon-tint);color:var(--tampon-dark)}
+.status-pill.closed{background:#eee;color:#888}
+
+.empty-note{text-align:center;color:var(--ink-soft);font-size:13.5px;padding:24px 10px}
+.small-note{font-size:12px;color:var(--ink-soft);margin-top:8px;line-height:1.5}
+.toast{position:fixed;bottom:18px;left:50%;transform:translateX(-50%);background:var(--ink);color:#fff;padding:11px 18px;border-radius:30px;font-size:13.5px;font-weight:600;z-index:200;box-shadow:0 4px 14px rgba(0,0,0,.25)}
+.top-back{background:none;color:var(--chalk);font-size:13px;font-weight:600;opacity:.8;margin-bottom:10px;display:inline-flex;align-items:center;gap:4px}
+@media(max-width:380px){.board-code{font-size:42px;letter-spacing:.16em}.stamp-btn{width:130px;height:130px}}
+</style>
+</head>
+<body>
+<div id="app" class="wrap"></div>
+
+<script type="module">
+import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
+import { initializeFirestore, persistentLocalCache, persistentMultipleTabManager,
+         doc, setDoc, getDoc, collection, getDocs, onSnapshot,
+         addDoc, query, where, orderBy, limit, deleteDoc, updateDoc, serverTimestamp
+       } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
+
+const firebaseConfig = {
+  apiKey: "AIzaSyBYeYPOptN2wEak_Ctcr4a8t5qXpj4riLE",
+  authDomain: "emploi-temps.firebaseapp.com",
+  projectId: "emploi-temps",
+  storageBucket: "emploi-temps.firebasestorage.app",
+  messagingSenderId: "665985283894",
+  appId: "1:665985283894:web:b0c4cb14824bb8fed9a597"
+};
+const fbApp = initializeApp(firebaseConfig);
+let db;
+try{
+  db = initializeFirestore(fbApp, { localCache: persistentLocalCache({ tabManager: persistentMultipleTabManager() }) });
+}catch(e){
+  db = initializeFirestore(fbApp, {});
+}
+
+// ══════════════════ Collections utilisées ══════════════════
+// - profs              (lecture seule, synchronisée depuis Emploi du temps)  {nom, matieres[]}
+// - edtxRoster          (lecture seule, synchronisée depuis Emploi du temps)  {name, eleves:[{id,name,prenom}]}
+// - edtxPresenceEleves  (créée ici, par l'admin)  {classeId, classeName, eleveId, eleveNom}  — doc id = token
+// - edtxPresenceSessions(créée ici, par le prof)  {classeId, classeName, matiere, profNom, profCode, code, active, createdAt, closedAt}
+//     └ eleves/{eleveId} (sous-collection)  {eleveNom, validatedAt}
+
+const ADMIN_PASS = 'reussir2024'; // mot de passe admin — identique aux autres apps du club
+const SS_KEY = 'edtxPresenceSession';
+const app = document.getElementById('app');
+
+function esc(s){ return String(s==null?'':s).replace(/[&<>"']/g, c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
+function toast(msg){ const t=document.createElement('div'); t.className='toast'; t.textContent=msg; document.body.appendChild(t); setTimeout(()=>t.remove(),2600); }
+function fmtTime(ts){ try{ const d = ts.toDate ? ts.toDate() : new Date(ts); return d.toLocaleTimeString('fr-FR',{hour:'2-digit',minute:'2-digit'}); }catch(e){ return ''; } }
+function fmtDate(d){ return d.toLocaleDateString('fr-FR',{day:'2-digit',month:'2-digit',year:'numeric'}); }
+function todayKey(){ return fmtDate(new Date()); }
+function genCode(){ return String(Math.floor(1000+Math.random()*9000)); }
+function genToken(){ return Math.random().toString(36).slice(2,10)+Math.random().toString(36).slice(2,6); }
+
+function getSession(){ try{ return JSON.parse(sessionStorage.getItem(SS_KEY)||'null'); }catch(e){ return null; } }
+function setSession(s){ sessionStorage.setItem(SS_KEY, JSON.stringify(s)); }
+function clearSession(){ sessionStorage.removeItem(SS_KEY); }
+
+// ══════════════════ En-tête commun ══════════════════
+function headHtml(eyebrow, title, sub, badge, showBack){
+  return `
+  <div class="cover-head">
+    ${showBack?`<button class="top-back" onclick="goHome()">← Retour</button><br>`:''}
+    <div class="cover-eyebrow">${esc(eyebrow)}</div>
+    <div class="cover-title">${esc(title)}</div>
+    ${sub?`<div class="cover-sub">${esc(sub)}</div>`:''}
+    ${badge?`<div class="who-badge">${badge}</div>`:''}
+  </div>`;
+}
+
+window.goHome = function(){
+  clearSession();
+  if(typeof eleveSessionUnsub==='function'){ eleveSessionUnsub(); eleveSessionUnsub=null; }
+  if(typeof adminSessionUnsub==='function'){ adminSessionUnsub(); adminSessionUnsub=null; }
+  if(typeof adminElevesUnsub==='function'){ adminElevesUnsub(); adminElevesUnsub=null; }
+  renderRoleSelect();
+};
+
+// ══════════════════ Écran d'accueil : choix du rôle ══════════════════
+function renderRoleSelect(){
+  const s = getSession();
+  if(s && s.role==='eleve'){ return renderEleveSpace(s); }
+  if(s && s.role==='admin'){ return renderAdminHome(s); }
+
+  const params = new URLSearchParams(location.search);
+  const token = params.get('eleve');
+  if(token){ return openEleveByToken(token); }
+
+  app.innerHTML = `
+    ${headHtml('Club Réussir Ensemble','Registre de présence','L\'appel, en un geste')}
+    <div class="page">
+      <div class="card">
+        <div class="card-title">Qui êtes-vous ?</div>
+        <div class="card-hint">Choisissez votre espace pour continuer.</div>
+        <div class="role-grid">
+          <button class="role-card cover-eleve" onclick="showEleveLogin()"><span class="emoji">🎒</span><span class="lbl">Élève</span></button>
+          <button class="role-card cover-admin" onclick="showAdminLogin()"><span class="emoji">🗂️</span><span class="lbl">Espace prof</span></button>
+        </div>
+        <button id="install-btn" class="btn btn-ghost" style="display:none;margin-top:14px" onclick="installApp()">⬇️ Installer l'application</button>
+      </div>
+    </div>`;
+  const ib = document.getElementById('install-btn');
+  if(ib && deferredInstallPrompt) ib.style.display = 'inline-flex';
+}
+
+let allClassesCache = null;
+async function loadAllClasses(){
+  if(allClassesCache) return allClassesCache;
+  try{
+    const snap = await getDocs(collection(db,'edtxRoster'));
+    allClassesCache = snap.docs.map(d=>({ id:d.id, name:d.data().name||d.id, eleves:d.data().eleves||[] }));
+  }catch(e){ allClassesCache = []; }
+  return allClassesCache;
+}
+
+// ══════════════════ CONNEXION ÉLÈVE ══════════════════
+let eleveRosterCache = {};
+window.showEleveLogin = async function(){
+  const classes = await loadAllClasses();
+  app.innerHTML = `
+    ${headHtml('Espace élève','Ma présence','Choisissez votre classe',null,true)}
+    <div class="page">
+      <div class="card">
+        <div class="field"><label>Classe</label>
+          <select id="el-classe" onchange="onEleveClasseChange()"><option value="">Choisir votre classe...</option>
+            ${classes.map(c=>`<option value="${esc(c.id)}">${esc(c.name)}</option>`).join('')}
+          </select>
+        </div>
+        <div id="el-nom-zone"></div>
+      </div>
+      <div class="small-note">Vous avez un lien personnel envoyé par votre professeur ? Ouvrez-le directement, il vous connectera automatiquement.</div>
+    </div>`;
+};
+window.onEleveClasseChange = async function(){
+  const classeId = document.getElementById('el-classe').value;
+  const zone = document.getElementById('el-nom-zone');
+  if(!classeId){ zone.innerHTML=''; return; }
+  const classes = await loadAllClasses();
+  const classe = classes.find(c=>c.id===classeId);
+  eleveRosterCache[classeId] = classe ? classe.eleves : [];
+  zone.innerHTML = `
+    <div class="field"><label>Votre nom</label>
+      <input type="text" id="el-nom-search" placeholder="Tapez votre nom..." oninput="filtrerEleveNom('${classeId}')">
+    </div>
+    <div id="el-nom-results" class="name-search-results" style="display:none"></div>`;
+};
+window.filtrerEleveNom = function(classeId){
+  const q = document.getElementById('el-nom-search').value.trim().toLowerCase();
+  const box = document.getElementById('el-nom-results');
+  if(q.length<2){ box.style.display='none'; box.innerHTML=''; return; }
+  const list = (eleveRosterCache[classeId]||[]).filter(e=>`${e.name||''} ${e.prenom||''}`.toLowerCase().includes(q)).slice(0,12);
+  box.style.display = list.length ? 'block' : 'none';
+  box.innerHTML = list.map(e=>{
+    const full = `${e.prenom?e.prenom+' ':''}${e.name||''}`.trim();
+    return `<div class="name-opt" data-classe="${esc(classeId)}" data-id="${esc(String(e.id))}" data-nom="${esc(full)}">${esc(full)}</div>`;
+  }).join('');
+  box.querySelectorAll('.name-opt').forEach(el=>{
+    el.addEventListener('click', ()=> eleveValiderIdentite(el.dataset.classe, el.dataset.id, el.dataset.nom));
+  });
+};
+window.eleveValiderIdentite = async function(classeId, eleveId, eleveNom){
+  const classes = await loadAllClasses();
+  const classe = classes.find(c=>c.id===classeId);
+  const s = { role:'eleve', classeId, classeName: classe?classe.name:classeId, eleveId, eleveNom };
+  setSession(s);
+  renderEleveSpace(s);
+};
+async function openEleveByToken(token){
+  app.innerHTML = `${headHtml('Espace élève','Connexion…','',null,false)}<div class="page"><div class="empty-note">Chargement de votre espace…</div></div>`;
+  try{
+    const snap = await getDoc(doc(db,'edtxPresenceEleves',token));
+    if(!snap.exists()){ toast('Lien invalide ou expiré.'); return renderRoleSelect(); }
+    const d = snap.data();
+    const s = { role:'eleve', classeId:d.classeId, classeName:d.classeName, eleveId:d.eleveId, eleveNom:d.eleveNom, token };
+    setSession(s);
+    renderEleveSpace(s);
+  }catch(e){ toast('Erreur de connexion.'); renderRoleSelect(); }
+}
+
+let eleveSessionUnsub = null;
+async function renderEleveSpace(s){
+  app.innerHTML = `
+    ${headHtml('Espace élève', s.eleveNom, s.classeName, null, true)}
+    <div class="page" id="el-body">
+      <div class="empty-note">Recherche d'un appel en cours pour votre classe…</div>
+    </div>`;
+  if(eleveSessionUnsub) eleveSessionUnsub();
+  const qy = query(collection(db,'edtxPresenceSessions'), where('classeId','==',s.classeId), where('active','==',true), orderBy('createdAt','desc'), limit(1));
+  eleveSessionUnsub = onSnapshot(qy, snap=>{
+    if(snap.empty){ renderEleveNoSession(); return; }
+    const d = snap.docs[0];
+    renderEleveActiveSession(d.id, d.data(), s);
+  }, err=>{ renderEleveNoSession(); });
+}
+function renderEleveNoSession(){
+  const body = document.getElementById('el-body');
+  if(!body) return;
+  body.innerHTML = `
+    <div class="card" style="text-align:center">
+      <div style="font-size:38px;margin-bottom:8px">🕊️</div>
+      <div class="card-title">Aucun appel en cours</div>
+      <div class="card-hint">Dès que votre professeur ouvrira l'appel, le code apparaîtra ici automatiquement.</div>
+    </div>`;
+}
+async function renderEleveActiveSession(sessionId, data, s){
+  const body = document.getElementById('el-body');
+  if(!body) return;
+  // Déjà validé ?
+  let already = null;
+  try{
+    const vs = await getDoc(doc(db,'edtxPresenceSessions',sessionId,'eleves',s.eleveId));
+    if(vs.exists()) already = vs.data();
+  }catch(e){}
+
+  if(already){
+    body.innerHTML = `
+      <div class="card" style="text-align:center">
+        <div class="stamp-zone"><div class="stamp-btn validated"><span class="big">✅</span>Présence enregistrée</div></div>
+        <div class="stamp-mark">Validé à ${fmtTime(already.validatedAt||new Date())} !</div>
+        <div class="card-hint" style="margin-top:12px">${esc(data.matiere)} · ${esc(data.profNom||'')}</div>
+      </div>`;
+    return;
+  }
+
+  body.innerHTML = `
+    <div class="card" style="text-align:center">
+      <div class="card-title">${esc(data.matiere)}</div>
+      <div class="card-hint">Cours de ${esc(data.profNom||'votre professeur')} — recopiez le code affiché au tableau.</div>
+      <div class="field" style="max-width:200px;margin:0 auto 14px">
+        <input type="text" id="el-code-input" inputmode="numeric" maxlength="4" placeholder="0000" style="text-align:center;font-family:'DM Mono',monospace;font-size:22px;letter-spacing:.3em">
+      </div>
+      <div class="stamp-zone">
+        <button class="stamp-btn" id="el-stamp-btn" onclick="eleveValiderPresence('${sessionId}')"><span class="big">🖋️</span>Je suis présent(e)</button>
+      </div>
+    </div>`;
+}
+window.eleveValiderPresence = async function(sessionId){
+  const s = getSession(); if(!s) return;
+  const input = document.getElementById('el-code-input');
+  const code = (input.value||'').trim();
+  if(code.length!==4){ input.parentElement.classList.add('code-shake'); setTimeout(()=>input.parentElement.classList.remove('code-shake'),400); toast('Entrez le code à 4 chiffres.'); return; }
+  try{
+    const snap = await getDoc(doc(db,'edtxPresenceSessions',sessionId));
+    if(!snap.exists() || !snap.data().active){ toast('Cet appel est clôturé.'); renderEleveSpace(s); return; }
+    if(snap.data().code !== code){
+      input.parentElement.classList.add('code-shake'); setTimeout(()=>input.parentElement.classList.remove('code-shake'),400);
+      toast('Code incorrect — redemandez au professeur.'); return;
+    }
+    await setDoc(doc(db,'edtxPresenceSessions',sessionId,'eleves',s.eleveId), {
+      eleveNom: s.eleveNom, eleveId: s.eleveId, validatedAt: serverTimestamp()
+    });
+    renderEleveActiveSession(sessionId, snap.data(), s);
+  }catch(e){ toast('Erreur — réessayez.'); }
+};
+
+// ══════════════════ ADMIN ══════════════════
+window.showAdminLogin = function(){
+  app.innerHTML = `
+    ${headHtml('Espace prof','Mot de passe','',null,true)}
+    <div class="page">
+      <div class="card">
+        <div class="field"><label>Mot de passe</label><input id="ad-pass" type="password" placeholder="••••••••"></div>
+        <button class="btn btn-primary" onclick="adminLogin()">Entrer →</button>
+      </div>
+    </div>`;
+};
+window.adminLogin = function(){
+  const p = document.getElementById('ad-pass').value;
+  if(p !== ADMIN_PASS){ toast('Mot de passe incorrect.'); return; }
+  const s = { role:'admin' };
+  setSession(s);
+  renderAdminHome(s);
+};
+
+let adminTab = 'appels';
+async function renderAdminHome(s){
+  if(adminSessionUnsub){ adminSessionUnsub(); adminSessionUnsub=null; }
+  if(adminElevesUnsub){ adminElevesUnsub(); adminElevesUnsub=null; }
+  app.innerHTML = `
+    ${headHtml('Espace prof','Registre de présence','',null,true)}
+    <div class="page">
+      <div class="tabs">
+        <button class="tab ${adminTab==='appels'?'active':''}" onclick="adminSwitchTab('appels')">📋 Appels</button>
+        <button class="tab ${adminTab==='liens'?'active':''}" onclick="adminSwitchTab('liens')">🔗 Liens élèves</button>
+        <button class="tab ${adminTab==='historique'?'active':''}" onclick="adminSwitchTab('historique')">📖 Historique</button>
+      </div>
+      <div id="ad-body"></div>
+    </div>`;
+  if(adminTab==='appels') renderAdminAppels();
+  else if(adminTab==='liens') renderAdminLiens();
+  else renderAdminHistorique();
+}
+window.adminSwitchTab = function(tab){ adminTab = tab; renderAdminHome({role:'admin'}); };
+
+// ── Onglet Appels : l'admin ouvre/ferme l'appel de chaque classe ──
+async function renderAdminAppels(){
+  const body = document.getElementById('ad-body');
+  const classes = await loadAllClasses();
+  let ouvertes = [];
+  try{
+    const qy = query(collection(db,'edtxPresenceSessions'), where('active','==',true));
+    const snap = await getDocs(qy);
+    snap.forEach(d=>ouvertes.push({ id:d.id, ...d.data() }));
+  }catch(e){}
+
+  body.innerHTML = `
+    ${ouvertes.length ? `
+    <div class="card">
+      <div class="card-title">Appels en cours</div>
+      ${ouvertes.map(o=>`<div class="session-row js-reprendre" data-id="${esc(o.id)}">
+          <div class="top"><span>${esc(o.classeName)} · ${esc(o.matiere)}</span><span class="status-pill open">En cours</span></div>
+          <div class="meta">Ouvert à ${o.createdAt?fmtTime(o.createdAt):''}</div>
+        </div>`).join('')}
+    </div>` : ''}
+    <div class="card">
+      <div class="card-title">Ouvrir un nouvel appel</div>
+      <div class="card-hint">Choisissez la classe, la matière et affichez le code au tableau — c'est vous qui gérez l'appel, du début à la fin.</div>
+      <div class="field"><label>Classe</label>
+        <select id="ad-ap-classe"><option value="">Choisir une classe...</option>
+          ${classes.map(c=>`<option value="${esc(c.id)}">${esc(c.name)}</option>`).join('')}
+        </select>
+      </div>
+      <div class="field"><label>Matière</label><input id="ad-ap-matiere" type="text" placeholder="Ex : Mathématiques"></div>
+      <div class="field"><label>Professeur (optionnel)</label><input id="ad-ap-prof" type="text" placeholder="Nom du professeur"></div>
+      <button class="btn btn-tampon" onclick="adminOuvrirAppel()">📋 Ouvrir l'appel</button>
+    </div>`;
+  body.querySelectorAll('.js-reprendre').forEach(row=>{
+    row.addEventListener('click', ()=> adminReprendreSession(row.dataset.id));
+  });
+}
+window.adminReprendreSession = async function(sessionId){
+  const snap = await getDoc(doc(db,'edtxPresenceSessions',sessionId));
+  if(!snap.exists()){ toast('Séance introuvable.'); return; }
+  renderAdminSession(sessionId, snap.data());
+};
+window.adminOuvrirAppel = async function(){
+  const classeId = document.getElementById('ad-ap-classe').value;
+  const matiere = document.getElementById('ad-ap-matiere').value.trim();
+  const profNom = document.getElementById('ad-ap-prof').value.trim();
+  if(!classeId){ toast('Choisissez une classe.'); return; }
+  if(!matiere){ toast('Indiquez la matière.'); return; }
+  const classes = await loadAllClasses();
+  const classe = classes.find(c=>c.id===classeId);
+  try{
+    // Évite d'ouvrir deux appels actifs pour la même classe
+    const qy = query(collection(db,'edtxPresenceSessions'), where('classeId','==',classeId), where('active','==',true));
+    const existing = await getDocs(qy);
+    if(!existing.empty){
+      toast('Un appel est déjà ouvert pour cette classe.');
+      renderAdminSession(existing.docs[0].id, existing.docs[0].data());
+      return;
+    }
+    const ref = await addDoc(collection(db,'edtxPresenceSessions'), {
+      classeId, classeName: classe?classe.name:classeId, matiere, profNom,
+      code: genCode(), active:true, date: todayKey(), createdAt: serverTimestamp()
+    });
+    renderAdminSession(ref.id, { classeId, classeName: classe?classe.name:classeId, matiere, profNom, code:null, active:true });
+  }catch(e){ toast('Erreur à l\'ouverture de l\'appel.'); }
+};
+
+let adminSessionUnsub = null, adminElevesUnsub = null;
+async function renderAdminSession(sessionId, data){
+  if(adminSessionUnsub) adminSessionUnsub();
+  if(adminElevesUnsub) adminElevesUnsub();
+  const classes = await loadAllClasses();
+  const classe = classes.find(c=>c.id===data.classeId);
+  const total = classe ? classe.eleves.length : 0;
+
+  const body = document.getElementById('ad-body');
+  body.innerHTML = `
+    <button class="link-btn" onclick="adminSwitchTab('appels')">← Retour aux appels</button>
+    <div class="board" id="ad-board">
+      <div class="board-label">${esc(data.classeName)} · ${esc(data.matiere)}${data.profNom?' · '+esc(data.profNom):''}</div>
+      <div class="board-code" id="ad-code-display">····</div>
+      <div class="board-meta" id="ad-board-status">Séance ouverte</div>
+    </div>
+    <div class="btn-row" style="margin-bottom:14px">
+      <button class="btn btn-outline" onclick="adminRegenererCode('${sessionId}')">🔄 Nouveau code</button>
+      <button class="btn btn-danger" id="ad-close-btn" onclick="adminCloturerAppel('${sessionId}')">🔴 Clôturer l'appel</button>
+    </div>
+    <div class="count-row">
+      <div class="count-box present"><div class="n" id="ad-count-present">0</div><div class="l">Présents</div></div>
+      <div class="count-box absent"><div class="n" id="ad-count-total">${total}</div><div class="l">Élèves inscrits</div></div>
+    </div>
+    <div class="card">
+      <div class="card-title">Élèves ayant validé</div>
+      <div id="ad-eleves-list" class="empty-note">En attente des premières validations…</div>
+    </div>`;
+
+  adminSessionUnsub = onSnapshot(doc(db,'edtxPresenceSessions',sessionId), snap=>{
+    if(!snap.exists()) return;
+    const d = snap.data();
+    const codeEl = document.getElementById('ad-code-display');
+    const statusEl = document.getElementById('ad-board-status');
+    const closeBtn = document.getElementById('ad-close-btn');
+    if(codeEl) codeEl.textContent = (d.code||'····').split('').join(' ');
+    if(statusEl) statusEl.textContent = d.active ? 'Séance ouverte — code actif' : 'Séance clôturée';
+    if(closeBtn && !d.active){ closeBtn.textContent = '✅ Appel clôturé'; closeBtn.disabled = true; closeBtn.style.opacity='.6'; }
+  });
+
+  adminElevesUnsub = onSnapshot(collection(db,'edtxPresenceSessions',sessionId,'eleves'), snap=>{
+    const rows = [];
+    snap.forEach(d=>rows.push({ id:d.id, ...d.data() }));
+    rows.sort((a,b)=> (a.eleveNom||'').localeCompare(b.eleveNom||''));
+    const listEl = document.getElementById('ad-eleves-list');
+    const countEl = document.getElementById('ad-count-present');
+    if(countEl) countEl.textContent = rows.length;
+    if(!listEl) return;
+    if(rows.length===0){ listEl.innerHTML = '<div class="empty-note">En attente des premières validations…</div>'; return; }
+    listEl.innerHTML = rows.map(r=>`<div class="el-row"><span class="el-name">${esc(r.eleveNom)}</span><span class="el-time">${r.validatedAt?fmtTime(r.validatedAt):''}</span></div>`).join('');
+  });
+}
+window.adminRegenererCode = async function(sessionId){
+  try{ await updateDoc(doc(db,'edtxPresenceSessions',sessionId), { code: genCode() }); toast('Nouveau code généré.'); }
+  catch(e){ toast('Erreur.'); }
+};
+window.adminCloturerAppel = async function(sessionId){
+  if(!confirm('Clôturer cet appel ? Les élèves ne pourront plus valider leur présence.')) return;
+  try{ await updateDoc(doc(db,'edtxPresenceSessions',sessionId), { active:false, closedAt: serverTimestamp() }); toast('Appel clôturé.'); }
+  catch(e){ toast('Erreur.'); }
+};
+
+async function renderAdminLiens(){
+  const body = document.getElementById('ad-body');
+  const classes = await loadAllClasses();
+  body.innerHTML = `
+    <div class="card">
+      <div class="card-title">Liens personnels par élève</div>
+      <div class="card-hint">Générez le lien de présence de chaque élève, à envoyer une fois par WhatsApp ou e-mail. L'élève l'ouvre en classe pour accéder directement à son espace.</div>
+      <div class="field"><label>Classe</label>
+        <select id="ad-classe" onchange="adminLoadLiens()"><option value="">Choisir une classe...</option>
+          ${classes.map(c=>`<option value="${esc(c.id)}">${esc(c.name)}</option>`).join('')}
+        </select>
+      </div>
+      <div id="ad-liens-list"></div>
+    </div>`;
+}
+window.adminLoadLiens = async function(){
+  const classeId = document.getElementById('ad-classe').value;
+  const listEl = document.getElementById('ad-liens-list');
+  if(!classeId){ listEl.innerHTML=''; return; }
+  listEl.innerHTML = '<div class="empty-note">Chargement…</div>';
+  const classes = await loadAllClasses();
+  const classe = classes.find(c=>c.id===classeId);
+  const eleves = classe ? classe.eleves : [];
+  // Récupérer les tokens existants pour cette classe
+  let existing = {};
+  try{
+    const qy = query(collection(db,'edtxPresenceEleves'), where('classeId','==',classeId));
+    const snap = await getDocs(qy);
+    snap.forEach(d=>{ existing[d.data().eleveId] = d.id; });
+  }catch(e){}
+  listEl.innerHTML = eleves.map(e=>{
+    const full = `${e.prenom?e.prenom+' ':''}${e.name||''}`.trim();
+    const token = existing[String(e.id)];
+    return `<div class="el-row" style="flex-wrap:wrap" data-eid="${esc(String(e.id))}" data-nom="${esc(full)}" data-token="${esc(token||'')}">
+      <span class="el-name">${esc(full)}</span>
+      <span>
+        ${token ? `<button class="link-btn js-partager">📤 Partager le lien</button>` : ''}
+        <button class="link-btn js-regenerer" ${token?'style="color:var(--ink-soft)"':''}>${token ? '↻' : '✨ Générer le lien'}</button>
+      </span>
+    </div>`;
+  }).join('') || '<div class="empty-note">Aucun élève dans cette classe.</div>';
+  listEl.querySelectorAll('.el-row').forEach(row=>{
+    const eid = row.dataset.eid, nom = row.dataset.nom, token = row.dataset.token;
+    const pBtn = row.querySelector('.js-partager');
+    if(pBtn) pBtn.addEventListener('click', ()=> adminPartagerLien(token, nom));
+    row.querySelector('.js-regenerer').addEventListener('click', ()=> adminRegenererLien(classeId, eid, classe.name, nom));
+  });
+};
+window.adminRegenererLien = async function(classeId, eleveId, classeName, eleveNom){
+  try{
+    const token = genToken();
+    await setDoc(doc(db,'edtxPresenceEleves',token), { classeId, classeName, eleveId, eleveNom, createdAt: serverTimestamp() });
+    toast('Lien généré.');
+    adminLoadLiens();
+  }catch(e){ toast('Erreur.'); }
+};
+window.adminPartagerLien = function(token, eleveNom){
+  const url = `${location.origin}${location.pathname}?eleve=${encodeURIComponent(token)}`;
+  const msg = `Bonjour, voici ton lien personnel pour le registre de présence (${eleveNom}) : ${url}`;
+  const wa = `https://wa.me/?text=${encodeURIComponent(msg)}`;
+  window.open(wa,'_blank');
+};
+
+async function renderAdminHistorique(){
+  const body = document.getElementById('ad-body');
+  body.innerHTML = `<div class="card"><div class="card-title">Derniers appels</div><div id="ad-histo" class="empty-note">Chargement…</div></div>`;
+  try{
+    const qy = query(collection(db,'edtxPresenceSessions'), orderBy('createdAt','desc'), limit(25));
+    const snap = await getDocs(qy);
+    const el = document.getElementById('ad-histo');
+    if(snap.empty){ el.innerHTML = '<div class="empty-note">Aucun appel enregistré.</div>'; return; }
+    el.innerHTML = snap.docs.map(d=>{
+      const x = d.data();
+      return `<div class="session-row" onclick="adminVoirSession('${d.id}')">
+        <div class="top"><span>${esc(x.classeName)} · ${esc(x.matiere)}</span><span class="status-pill ${x.active?'open':'closed'}">${x.active?'En cours':'Clôturé'}</span></div>
+        <div class="meta">${esc(x.date||'')} — ${esc(x.profNom||'')}</div>
+      </div>`;
+    }).join('');
+  }catch(e){ document.getElementById('ad-histo').innerHTML = '<div class="empty-note">Erreur de chargement.</div>'; }
+}
+window.adminVoirSession = async function(sessionId){
+  const snap = await getDoc(doc(db,'edtxPresenceSessions',sessionId));
+  if(!snap.exists()) return;
+  const data = snap.data();
+  const classes = await loadAllClasses();
+  const classe = classes.find(c=>c.id===data.classeId);
+  const rosterEleves = classe ? classe.eleves : [];
+  const vsnap = await getDocs(collection(db,'edtxPresenceSessions',sessionId,'eleves'));
+  const presentIds = new Set(); const presentRows = [];
+  vsnap.forEach(d=>{ presentIds.add(String(d.data().eleveId)); presentRows.push(d.data()); });
+  presentRows.sort((a,b)=>(a.eleveNom||'').localeCompare(b.eleveNom||''));
+  const absents = rosterEleves.filter(e=>!presentIds.has(String(e.id)));
+
+  const body = document.getElementById('ad-body');
+  body.innerHTML = `
+    <button class="link-btn" onclick="adminSwitchTab('historique')">← Retour à l'historique</button>
+    <div class="card">
+      <div class="card-title">${esc(data.classeName)} · ${esc(data.matiere)}</div>
+      <div class="card-hint">${esc(data.date||'')} — ${esc(data.profNom||'')} · <span class="status-pill ${data.active?'open':'closed'}">${data.active?'En cours':'Clôturé'}</span></div>
+      <div class="count-row">
+        <div class="count-box present"><div class="n">${presentRows.length}</div><div class="l">Présents</div></div>
+        <div class="count-box absent"><div class="n">${absents.length}</div><div class="l">Absents</div></div>
+      </div>
+      <div class="card-title" style="font-size:14px;margin-top:4px">✅ Présents</div>
+      ${presentRows.map(r=>`<div class="el-row"><span class="el-name">${esc(r.eleveNom)}</span><span class="el-time">${r.validatedAt?fmtTime(r.validatedAt):''}</span></div>`).join('') || '<div class="empty-note">Aucun.</div>'}
+      <div class="card-title" style="font-size:14px;margin-top:14px">❌ Absents</div>
+      ${absents.map(e=>`<div class="el-row"><span class="el-name">${esc(`${e.prenom?e.prenom+' ':''}${e.name||''}`.trim())}</span><span class="el-missing">absent</span></div>`).join('') || '<div class="empty-note">Aucun.</div>'}
+    </div>`;
+};
+
+// ══════════════════ Installation PWA (mobile & PC) ══════════════════
+if('serviceWorker' in navigator){
+  window.addEventListener('load', ()=>{
+    navigator.serviceWorker.register('./sw-presence.js').catch(()=>{});
+  });
+}
+let deferredInstallPrompt = null;
+window.addEventListener('beforeinstallprompt', (e)=>{
+  e.preventDefault();
+  deferredInstallPrompt = e;
+  const btn = document.getElementById('install-btn');
+  if(btn) btn.style.display = 'inline-flex';
+});
+window.installApp = async function(){
+  if(!deferredInstallPrompt) return;
+  deferredInstallPrompt.prompt();
+  await deferredInstallPrompt.userChoice;
+  deferredInstallPrompt = null;
+  const btn = document.getElementById('install-btn');
+  if(btn) btn.style.display = 'none';
+};
+window.addEventListener('appinstalled', ()=>{
+  deferredInstallPrompt = null;
+  const btn = document.getElementById('install-btn');
+  if(btn) btn.style.display = 'none';
+});
+
+// ══════════════════ Démarrage ══════════════════
+renderRoleSelect();
+</script>
+</body>
+</html>
