@@ -170,7 +170,7 @@ try{
 
 // ══════════════════ Collections utilisées ══════════════════
 // - profs              (lecture seule, synchronisée depuis Emploi du temps)  {nom, matieres[]}
-// - edtxRoster          (lecture seule, synchronisée depuis Emploi du temps)  {name, eleves:[{id,name,prenom}]}
+// - edtxRoster          (lecture seule, synchronisée depuis Emploi du temps)  {name, eleves:[{id,name,prenom,tel}]}
 // - edtxPresenceEleves  (créée ici, par l'admin)  {classeId, classeName, eleveId, eleveNom}  — doc id = token
 // - edtxPresenceSessions(créée ici, par le prof)  {classeId, classeName, matiere, profNom, profCode, code, active, createdAt, closedAt}
 //     └ eleves/{eleveId} (sous-collection)  {eleveNom, validatedAt}
@@ -604,7 +604,9 @@ window.adminLoadLiens = async function(){
     const full = `${e.prenom?e.prenom+' ':''}${e.name||''}`.trim();
     const info = existing[String(e.id)] || {};
     const token = info.token;
-    const tel = info.tel || '';
+    // Le numéro enregistré manuellement dans App Présences reste prioritaire ;
+    // sinon on reprend automatiquement celui synchronisé depuis Emploi du temps (edtxRoster).
+    const tel = info.tel || e.tel || '';
     return `<div class="el-row" style="flex-wrap:wrap;gap:6px" data-eid="${esc(String(e.id))}" data-nom="${esc(full)}" data-token="${esc(token||'')}">
       <span class="el-name">${esc(full)}</span>
       ${token ? `<input type="tel" class="js-tel" placeholder="N° WhatsApp (ex: 622112233)" value="${esc(tel)}" style="flex:1;min-width:150px;padding:6px 8px;border:1px solid var(--line,#ccc);border-radius:6px">` : ''}
