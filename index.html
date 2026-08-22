@@ -320,16 +320,31 @@ async function renderEleveSpace(s){
       <div class="empty-note">Recherche d'un appel en cours pour votre classe…</div>
     </div>`;
   if(eleveSessionUnsub) eleveSessionUnsub();
-  const qy = query(collection(db,'edtxPresenceSessions'), where('classeId','==',s.classeId), where('active','==',true), orderBy('createdAt','desc'), limit(1));
+  const qy = query(collection(db,'edtxPresenceSessions'), where('classeId','==',s.classeId), where('active','==',true));
   eleveSessionUnsub = onSnapshot(qy, snap=>{
     if(snap.empty){ renderEleveNoSession(); return; }
-    const d = snap.docs[0];
+    // Pas d'orderBy ici pour éviter de dépendre d'un index composite Firestore : tri côté client.
+    const docsSorted = [...snap.docs].sort((a,b)=>{
+      const ta = a.data().createdAt?.toMillis ? a.data().createdAt.toMillis() : 0;
+      const tb = b.data().createdAt?.toMillis ? b.data().createdAt.toMillis() : 0;
+      return tb - ta;
+    });
+    const d = docsSorted[0];
     renderEleveActiveSession(d.id, d.data(), s);
-  }, err=>{ renderEleveNoSession(); });
+  }, err=>{ console.error('Erreur recherche appel actif:', err); renderEleveNoSession(err); });
 }
-function renderEleveNoSession(){
+function renderEleveNoSession(err){
   const body = document.getElementById('el-body');
   if(!body) return;
+  if(err){
+    body.innerHTML = `
+      <div class="card" style="text-align:center">
+        <div style="font-size:38px;margin-bottom:8px">⚠️</div>
+        <div class="card-title">Connexion impossible</div>
+        <div class="card-hint">Une erreur technique empêche de vérifier l'appel en cours. Réessayez, ou contactez votre professeur.</div>
+      </div>`;
+    return;
+  }
   body.innerHTML = `
     <div class="card" style="text-align:center">
       <div style="font-size:38px;margin-bottom:8px">🕊️</div>
