@@ -135,15 +135,50 @@ input,select{font-family:inherit}
 .status-pill.open{background:var(--tampon-tint);color:var(--tampon-dark)}
 .status-pill.closed{background:#eee;color:#888}
 
+/* ── Scanner QR / Badges ── */
+.qr-modal{position:fixed;inset:0;background:rgba(16,20,28,.72);z-index:400;display:flex;align-items:center;justify-content:center;padding:16px}
+.qr-modal-inner{background:var(--paper-card);border-radius:16px;max-width:380px;width:100%;max-height:88vh;overflow-y:auto;box-shadow:0 12px 40px rgba(0,0,0,.4)}
+.qr-modal-head{display:flex;align-items:center;justify-content:space-between;padding:14px 16px;border-bottom:1px solid var(--rule);font-weight:700;font-size:15px}
+.qr-modal-head .icon-btn{background:var(--stylo-tint);color:var(--stylo-dark);border:none}
+#qr-reader{width:100%;background:#000}
+#qr-reader video{border-radius:0 0 0 0}
+.qr-feedback{max-height:180px;overflow-y:auto;padding:10px 14px}
+.qr-fb-row{padding:9px 10px;border-radius:9px;font-size:13.5px;font-weight:600;margin-bottom:6px}
+.qr-fb-ok{background:var(--tampon-tint);color:var(--tampon-dark)}
+.qr-fb-warn{background:#fff4e0;color:#a2650f}
+.qr-fb-err{background:var(--absent-tint);color:var(--absent)}
+.badge-card{border:2px solid var(--cover);border-radius:14px;padding:22px 18px;text-align:center;width:220px;margin:0 auto;background:#fff}
+.badge-club{font-family:'DM Mono',monospace;font-size:10.5px;letter-spacing:.1em;text-transform:uppercase;color:var(--ink-soft);margin-bottom:12px}
+.badge-nom{font-family:'Fraunces',serif;font-weight:600;font-size:16.5px;margin-top:12px}
+.badge-classe{font-size:12.5px;color:var(--ink-soft);margin-top:2px}
+.badges-grid{display:grid;grid-template-columns:1fr 1fr;gap:14px;padding:16px}
+
 .empty-note{text-align:center;color:var(--ink-soft);font-size:13.5px;padding:24px 10px}
 .small-note{font-size:12px;color:var(--ink-soft);margin-top:8px;line-height:1.5}
 .toast{position:fixed;bottom:18px;left:50%;transform:translateX(-50%);background:var(--ink);color:#fff;padding:11px 18px;border-radius:30px;font-size:13.5px;font-weight:600;z-index:200;box-shadow:0 4px 14px rgba(0,0,0,.25)}
 .top-back{background:none;color:var(--chalk);font-size:13px;font-weight:600;opacity:.8;margin-bottom:10px;display:inline-flex;align-items:center;gap:4px}
 @media(max-width:380px){.board-code{font-size:42px;letter-spacing:.16em}.stamp-btn{width:130px;height:130px}}
 </style>
+<script src="https://cdn.jsdelivr.net/npm/html5-qrcode@2.3.8/html5-qrcode.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/qrcode@1.5.3/build/qrcode.min.js"></script>
 </head>
 <body>
 <div id="app" class="wrap"></div>
+
+<div id="qr-scanner-modal" class="qr-modal" style="display:none">
+  <div class="qr-modal-inner">
+    <div class="qr-modal-head"><span>📷 Scanner un badge</span><button class="icon-btn" onclick="closeScanner()">✕</button></div>
+    <div id="qr-reader"></div>
+    <div id="qr-feedback" class="qr-feedback"></div>
+  </div>
+</div>
+
+<div id="badge-modal" class="qr-modal" style="display:none">
+  <div class="qr-modal-inner">
+    <div class="qr-modal-head"><span id="badge-modal-title">🪪 Badge élève</span><button class="icon-btn" onclick="closeBadgeModal()">✕</button></div>
+    <div id="badge-modal-inner" style="padding:16px;text-align:center"></div>
+  </div>
+</div>
 
 <script type="module">
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
@@ -524,6 +559,7 @@ async function renderAdminSession(sessionId, data){
       <div class="board-code" id="ad-code-display">····</div>
       <div class="board-meta" id="ad-board-status">Séance ouverte</div>
     </div>
+    <button class="btn btn-tampon" style="margin-bottom:10px" onclick="openScanner('${sessionId}','${esc(data.classeId)}')">📷 Scanner un badge</button>
     <div class="btn-row" style="margin-bottom:14px">
       <button class="btn btn-outline" onclick="adminRegenererCode('${sessionId}')">🔄 Nouveau code</button>
       <button class="btn btn-danger" id="ad-close-btn" onclick="adminCloturerAppel('${sessionId}')">🔴 Clôturer l'appel</button>
@@ -570,6 +606,80 @@ window.adminCloturerAppel = async function(sessionId){
   catch(e){ toast('Erreur.'); }
 };
 
+// ══════════════════ Scanner de badges QR ══════════════════
+const QR_PREFIX = 'PRESENCE:';
+let html5QrScanner = null, qrCurrentSessionId = null, qrCurrentClasseId = null, qrLastScanAt = 0, qrLastToken = null;
+window.openScanner = function(sessionId, classeId){
+  qrCurrentSessionId = sessionId; qrCurrentClasseId = classeId; qrLastScanAt = 0; qrLastToken = null;
+  const modal = document.getElementById('qr-scanner-modal');
+  const fb = document.getElementById('qr-feedback');
+  if(fb) fb.innerHTML = '';
+  modal.style.display = 'flex';
+  if(typeof Html5Qrcode === 'undefined'){ toast('Le scanner n\'a pas pu se charger — vérifiez votre connexion.'); modal.style.display='none'; return; }
+  html5QrScanner = new Html5Qrcode('qr-reader');
+  html5QrScanner.start(
+    { facingMode: 'environment' },
+    { fps: 10, qrbox: { width: 230, height: 230 } },
+    onQrScanSuccess,
+    ()=>{}
+  ).catch(()=>{ toast('Impossible d\'accéder à la caméra. Vérifiez les autorisations.'); closeScanner(); });
+};
+window.closeScanner = function(){
+  const modal = document.getElementById('qr-scanner-modal');
+  if(modal) modal.style.display = 'none';
+  if(html5QrScanner){
+    const s = html5QrScanner; html5QrScanner = null;
+    s.stop().then(()=>s.clear()).catch(()=>{});
+  }
+};
+function qrBeep(ok){
+  try{
+    const ctx = new (window.AudioContext||window.webkitAudioContext)();
+    const o = ctx.createOscillator(), g = ctx.createGain();
+    o.frequency.value = ok ? 880 : 220; o.connect(g); g.connect(ctx.destination);
+    g.gain.setValueAtTime(0.16, ctx.currentTime);
+    o.start(); o.stop(ctx.currentTime + 0.13);
+  }catch(e){}
+}
+function qrPushFeedback(html){
+  const fb = document.getElementById('qr-feedback');
+  if(fb) fb.insertAdjacentHTML('afterbegin', html);
+}
+async function onQrScanSuccess(text){
+  const now = Date.now();
+  if(text === qrLastToken && now - qrLastScanAt < 2500) return; // évite les doubles lectures du même badge
+  qrLastScanAt = now; qrLastToken = text;
+  if(!text || !text.startsWith(QR_PREFIX)){
+    qrPushFeedback(`<div class="qr-fb-row qr-fb-err">⚠️ Ce code n'est pas un badge de présence.</div>`);
+    qrBeep(false); return;
+  }
+  const token = text.slice(QR_PREFIX.length);
+  try{
+    const tsnap = await getDoc(doc(db,'edtxPresenceEleves',token));
+    if(!tsnap.exists()){
+      qrPushFeedback(`<div class="qr-fb-row qr-fb-err">⚠️ Badge inconnu ou expiré.</div>`);
+      qrBeep(false); return;
+    }
+    const d = tsnap.data();
+    if(String(d.classeId) !== String(qrCurrentClasseId)){
+      qrPushFeedback(`<div class="qr-fb-row qr-fb-err">⚠️ ${esc(d.eleveNom)} n'appartient pas à cette classe.</div>`);
+      qrBeep(false); return;
+    }
+    const already = await getDoc(doc(db,'edtxPresenceSessions',qrCurrentSessionId,'eleves',String(d.eleveId)));
+    if(already.exists()){
+      qrPushFeedback(`<div class="qr-fb-row qr-fb-warn">↻ ${esc(d.eleveNom)} — déjà marqué(e) présent(e).</div>`);
+      qrBeep(false); return;
+    }
+    await setDoc(doc(db,'edtxPresenceSessions',qrCurrentSessionId,'eleves',String(d.eleveId)), {
+      eleveNom: d.eleveNom, eleveId: d.eleveId, validatedAt: serverTimestamp(), viaScan: true
+    });
+    qrPushFeedback(`<div class="qr-fb-row qr-fb-ok">✅ ${esc(d.eleveNom)} — présent(e) !</div>`);
+    qrBeep(true);
+  }catch(e){
+    qrPushFeedback(`<div class="qr-fb-row qr-fb-err">Erreur de lecture — réessayez.</div>`);
+  }
+}
+
 async function renderAdminLiens(){
   const body = document.getElementById('ad-body');
   const classes = await loadAllClasses();
@@ -600,7 +710,7 @@ window.adminLoadLiens = async function(){
     const snap = await getDocs(qy);
     snap.forEach(d=>{ existing[d.data().eleveId] = { token: d.id, tel: d.data().tel || '' }; });
   }catch(e){}
-  listEl.innerHTML = eleves.map(e=>{
+  const rowsHtml = eleves.map(e=>{
     const full = `${e.prenom?e.prenom+' ':''}${e.name||''}`.trim();
     const info = existing[String(e.id)] || {};
     const token = info.token;
@@ -611,22 +721,27 @@ window.adminLoadLiens = async function(){
       <span class="el-name">${esc(full)}</span>
       ${token ? `<input type="tel" class="js-tel" placeholder="N° WhatsApp (ex: 622112233)" value="${esc(tel)}" style="flex:1;min-width:150px;padding:6px 8px;border:1px solid var(--line,#ccc);border-radius:6px">` : ''}
       <span>
-        ${token ? `<button class="link-btn js-partager-wa" title="Envoyer par WhatsApp">📱 WhatsApp</button>
+        ${token ? `<button class="link-btn js-badge" title="Voir / imprimer le badge">🪪 Badge</button>
+        <button class="link-btn js-partager-wa" title="Envoyer par WhatsApp">📱 WhatsApp</button>
         <button class="link-btn js-partager-email" title="Envoyer par e-mail">✉️ Email</button>
         <button class="link-btn js-partager-sms" title="Envoyer par SMS">💬 SMS</button>` : ''}
         <button class="link-btn js-regenerer" ${token?'style="color:var(--ink-soft)"':''}>${token ? '↻' : '✨ Générer le lien'}</button>
       </span>
     </div>`;
   }).join('') || '<div class="empty-note">Aucun élève dans cette classe.</div>';
+  const anyToken = eleves.some(e=>existing[String(e.id)] && existing[String(e.id)].token);
+  listEl.innerHTML = (anyToken ? `<button class="btn btn-outline" style="margin-bottom:10px" onclick="adminImprimerTousBadges('${esc(classeId)}')">🖨️ Imprimer tous les badges de la classe</button>` : '') + rowsHtml;
   listEl.querySelectorAll('.el-row').forEach(row=>{
     const eid = row.dataset.eid, nom = row.dataset.nom, token = row.dataset.token;
     const telInput = row.querySelector('.js-tel');
+    const badgeBtn = row.querySelector('.js-badge');
     const waBtn = row.querySelector('.js-partager-wa');
     const emailBtn = row.querySelector('.js-partager-email');
     const smsBtn = row.querySelector('.js-partager-sms');
     if(telInput){
       telInput.addEventListener('change', ()=> adminEnregistrerTel(token, telInput.value.trim()));
     }
+    if(badgeBtn) badgeBtn.addEventListener('click', ()=> adminVoirBadge(token, nom, classe.name));
     if(waBtn) waBtn.addEventListener('click', ()=> adminPartagerLien(token, nom, 'wa', telInput?telInput.value.trim():''));
     if(emailBtn) emailBtn.addEventListener('click', ()=> adminPartagerLien(token, nom, 'email'));
     if(smsBtn) smsBtn.addEventListener('click', ()=> adminPartagerLien(token, nom, 'sms', telInput?telInput.value.trim():''));
@@ -648,6 +763,88 @@ window.adminRegenererLien = async function(classeId, eleveId, classeName, eleveN
     adminLoadLiens();
   }catch(e){ toast('Erreur.'); }
 };
+window.adminVoirBadge = function(token, nom, classeName){
+  if(!token){ toast('Générez d\'abord le lien de cet élève.'); return; }
+  const modal = document.getElementById('badge-modal');
+  const inner = document.getElementById('badge-modal-inner');
+  modal.style.display = 'flex';
+  inner.innerHTML = `
+    <div class="badge-card" id="badge-print-zone">
+      <div class="badge-club">Club Réussir Ensemble</div>
+      <canvas id="badge-qr-canvas"></canvas>
+      <div class="badge-nom">${esc(nom)}</div>
+      <div class="badge-classe">${esc(classeName)}</div>
+    </div>
+    <div class="btn-row" style="margin-top:16px">
+      <button class="btn btn-outline" onclick="closeBadgeModal()">Fermer</button>
+      <button class="btn btn-primary" onclick="printOneBadge('${esc(token)}','${esc(nom)}','${esc(classeName)}')">🖨️ Imprimer</button>
+    </div>`;
+  if(typeof QRCode === 'undefined'){ toast('Le générateur de QR n\'a pas pu se charger.'); return; }
+  QRCode.toCanvas(document.getElementById('badge-qr-canvas'), QR_PREFIX+token, { width:170, margin:1 }, ()=>{});
+};
+window.closeBadgeModal = function(){ const m = document.getElementById('badge-modal'); if(m) m.style.display = 'none'; };
+window.printOneBadge = function(token, nom, classeName){
+  const cardHtml = `
+    <div class="badge-card">
+      <div class="badge-club">Club Réussir Ensemble</div>
+      <canvas class="badge-print-qr" data-token="${esc(token)}"></canvas>
+      <div class="badge-nom">${esc(nom)}</div>
+      <div class="badge-classe">${esc(classeName)}</div>
+    </div>`;
+  openPrintWindow(`<div class="badges-grid">${cardHtml}</div>`, [{ token }]);
+};
+window.adminImprimerTousBadges = async function(classeId){
+  const classes = await loadAllClasses();
+  const classe = classes.find(c=>c.id===classeId);
+  if(!classe){ toast('Classe introuvable.'); return; }
+  let existing = {};
+  try{
+    const qy = query(collection(db,'edtxPresenceEleves'), where('classeId','==',classeId));
+    const snap = await getDocs(qy);
+    snap.forEach(d=>{ existing[d.data().eleveId] = d.id; });
+  }catch(e){}
+  const withToken = classe.eleves.filter(e=>existing[String(e.id)]);
+  if(!withToken.length){ toast('Aucun badge disponible — générez d\'abord les liens.'); return; }
+  const cards = withToken.map(e=>{
+    const full = `${e.prenom?e.prenom+' ':''}${e.name||''}`.trim();
+    return { nom: full, token: existing[String(e.id)] };
+  });
+  const cardsHtml = cards.map(c=>`
+    <div class="badge-card">
+      <div class="badge-club">Club Réussir Ensemble</div>
+      <canvas class="badge-print-qr" data-token="${esc(c.token)}"></canvas>
+      <div class="badge-nom">${esc(c.nom)}</div>
+      <div class="badge-classe">${esc(classe.name)}</div>
+    </div>`).join('');
+  openPrintWindow(`<div class="badges-grid">${cardsHtml}</div>`, cards);
+};
+function openPrintWindow(html, cardsForQr){
+  const w = window.open('', '_blank');
+  w.document.write(`<html><head><title>Badges — Club Réussir Ensemble</title><style>
+    body{font-family:Arial,sans-serif;padding:20px}
+    .badges-grid{display:grid;grid-template-columns:1fr 1fr;gap:16px}
+    .badge-card{border:2px solid #1c2b45;border-radius:14px;padding:20px;text-align:center;page-break-inside:avoid}
+    .badge-club{font-size:10px;letter-spacing:.1em;text-transform:uppercase;color:#67737e;margin-bottom:10px}
+    canvas{margin:0 auto;display:block}
+    .badge-nom{font-weight:700;font-size:16px;margin-top:10px}
+    .badge-classe{font-size:12px;color:#67737e}
+  </style></head><body>${html}</body></html>`);
+  w.document.close();
+  const finish = ()=> setTimeout(()=>w.print(), 500);
+  if(cardsForQr && cardsForQr.length){
+    // Redessine les QR dans la fenêtre d'impression (le canvas ne se copie pas via outerHTML)
+    const check = setInterval(()=>{
+      const canvases = w.document.querySelectorAll('.badge-print-qr');
+      if(canvases.length){
+        clearInterval(check);
+        canvases.forEach(cv=> QRCode.toCanvas(cv, QR_PREFIX+cv.dataset.token, { width:170, margin:1 }, ()=>{}));
+        finish();
+      }
+    }, 60);
+  } else {
+    finish();
+  }
+}
 window.adminPartagerLien = function(token, eleveNom, canal, tel){
   const url = `${location.origin}${location.pathname}?eleve=${encodeURIComponent(token)}`;
   const msg = `Bonjour, voici ton lien personnel pour le registre de présence (${eleveNom}) : ${url}`;
